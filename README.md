@@ -57,3 +57,5 @@ Training scripts for language model training can be found in `scripts/multiberts
 python scripts/multiberts/pretraining/preprocess.py --out-path ~/path/to/dataset/
 python scripts/multiberts/pretraining/mlm.py --data-path path/to/dataset/books-wiki.json --exp-path path/to/output/ --seed 0
 ```
+
+The early pre-training checkpoints used in the paper are available on HuggingFace Hub as the [**EarlyBERTs**](https://huggingface.co/collections/personads/earlyberts-6720bf519be2d656a13d7836).
