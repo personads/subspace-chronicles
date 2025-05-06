@@ -24,6 +24,9 @@ def parse_arguments():
 	arg_parser.add_argument(
 		'-rl', '--repeat-labels', action='store_true', default=False,
 		help='set flag to repeat sequence target label for each token in sequence (default: False)')
+	arg_parser.add_argument(
+		'--tokenized', action='store_true', default=False,
+		help='set flag to indicate pre-tokenized datasets (default: False)')
 
 	# execution setup
 	arg_parser.add_argument(
@@ -37,7 +40,7 @@ def main():
 	args = parse_arguments()
 
 	# set up data
-	dataset = LabelledDataset.from_path(args.data_path)
+	dataset = LabelledDataset.from_path(args.data_path, tokenized=args.tokenized)
 	dataset_inputs = dataset.get_inputs()
 	dataset_labels = dataset._labels
 	logging.info(f"Loaded {dataset} from '{args.data_path}'.")

@@ -111,6 +111,20 @@ class EmbeddingClassifier(nn.Module):
 #
 
 
+class LinearClassifier(EmbeddingClassifier):
+	def __init__(self, emb_model: Encoder, classes, bias=True, lbl_models=None):
+		# instantiate linear classifier without bias
+		if lbl_models is None:
+			lbl_models = [
+				nn.Linear(emb_model.emb_dim, len(classes), bias=bias)
+				for _ in range(emb_model.num_outputs)
+			]
+
+		super().__init__(
+			emb_model=emb_model, lbl_models=lbl_models, classes=classes
+		)
+
+
 class MdlLinearClassifier(EmbeddingClassifier):
 	def __init__(self, emb_model: Encoder, classes, lbl_models=None):
 		# instantiate variational linear classifier

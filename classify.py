@@ -27,6 +27,9 @@ def parse_arguments():
 		'--repeat-labels', action='store_true', default=False,
 		help='set flag to repeat sequence target label for each token in sequence (default: False)')
 	arg_parser.add_argument(
+		'--tokenized', action='store_true', default=False,
+		help='set flag to indicate pre-tokenized datasets (default: False)')
+	arg_parser.add_argument(
 		'--prediction', action='store_true', default=False,
 		help='set flag to only perform prediction on the validation data without training (default: False)')
 
@@ -80,12 +83,12 @@ def main():
 
 	# set up data
 	train_data = None
-	valid_data = LabelledDataset.from_path(args.valid_path)
+	valid_data = LabelledDataset.from_path(args.valid_path, tokenized=args.tokenized)
 	label_types = sorted(set(valid_data.get_label_types()))
-	logging.info(f"Loaded {valid_data} (dev).")
+	logging.info(f"Loaded {valid_data} (dev) from '{args.valid_path}'.")
 	if args.train_path is not None:
-		train_data = LabelledDataset.from_path(args.train_path)
-		logging.info(f"Loaded {train_data} (train).")
+		train_data = LabelledDataset.from_path(args.train_path, tokenized=args.tokenized)
+		logging.info(f"Loaded {train_data} (train) from '{args.train_path}'.")
 		# gather labels
 		if set(train_data.get_label_types()) < set(valid_data.get_label_types()):
 			logging.warning(f"[Warning] Validation data contains labels unseen in the training data.")
@@ -94,10 +97,10 @@ def main():
 	# set up encoder
 	encoder = setup_encoder(
 		model_name=args.model_name, model_revision=args.model_revision,
-		layers_id=args.layers, filter_id=args.filter,
+		layers_id=args.layers,
 		model_path=model_path, encoder_path=args.encoder_path,
 		emb_caching=args.embedding_caching, emb_pooling=args.embedding_pooling, emb_tuning=args.embedding_tuning,
-		lyr_pooling=args.layer_pooling
+		tokenized=args.tokenized
 	)
 
 	# align dataset labels with encoder tokenization

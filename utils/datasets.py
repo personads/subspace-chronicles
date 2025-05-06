@@ -2,13 +2,21 @@ import csv
 import sys
 
 import numpy as np
+import torch
 import transformers.models.bert
 
 
+# manual collection of false word onsets during subword tokenization (for GPT-style tokenizers)
+FALSE_WORD_ONSETS = {
+    'ðŁ', 'âĻ', 'âĺ', 'âĸ', 'âĢ', 'ÃĮ', 'îĢį', 'ï£«', 'ó¾ģı', 'ï¼ł', 'âĿ', 'Î¥', 'îĮ', 'îģ', 'îĲ', 'îĦ', 'âľ', 'âļ', 'ãĢ'
+}
+
+
 class LabelledDataset:
-    def __init__(self, inputs, labels):
+    def __init__(self, inputs, labels, tokenized=False):
         self._inputs = inputs  # List(List(Str)): [['t0', 't1', ...], ['t0', 't1', ...]] or List(Str): ['t0 t1 ... tN']
         self._labels = labels  # List(List(Str)): [['l0', 'l1', ...], ['l0', 'l1', ...]] or List(Str): ['l0', 'l1', ...]
+        self._tokenized = tokenized
         self._repeated_labels = None
         self._label_level = None
 
@@ -16,7 +24,8 @@ class LabelledDataset:
         return len(list(self.get_flattened_labels()))
 
     def __repr__(self):
-        return f'<LabelledDataset: {len(self._inputs)} inputs, {len(self)} labels ({self.get_label_level()}-level)>'
+        return f'<LabelledDataset: {len(self._inputs)} inputs (tokenized={self._tokenized}), ' \
+               f'{len(self)} labels ({self.get_label_level()}-level)>'
 
     def __getitem__(self, key):
         return self._inputs[key], self._labels[key]
@@ -63,6 +72,16 @@ class LabelledDataset:
 
         return level
 
+    def tokenize_batch(self, sequences):
+        for sequence_idx, sequence in enumerate(sequences):
+            if type(sequence) is str:
+                sequences[sequence_idx] = sequence.split(' ')
+            elif type(sequence) is tuple:
+                sequences[sequence_idx] = tuple(subseq.split(' ') for subseq in sequence)
+            else:
+                raise ValueError(f'Unknown tokenization for sequence of type f{type(sequence)} with {self.get_label_level()} labels.')
+        return sequences
+
     def get_batches(self, batch_size):
         cursor = 0
         while cursor < len(self._inputs):
@@ -74,6 +93,9 @@ class LabelledDataset:
 
             # slice data
             inputs = self._inputs[start_idx:end_idx]
+            # split tokenized datasets
+            if self._tokenized:
+                inputs = self.tokenize_batch(inputs)
 
             # retrieve labels
             if self._repeated_labels is None:
@@ -99,6 +121,9 @@ class LabelledDataset:
 
             # gather batch data
             inputs = [self._inputs[idx] for idx in batch_idcs]
+            # split tokenized datasets
+            if self._tokenized:
+                inputs = self.tokenize_batch(inputs)
             # flatten sequential labels if necessary
             if (self.get_label_level() == 'token') and (self._repeated_labels is None):
                 labels = [l for idx in batch_idcs for l in self._labels[idx]]
@@ -120,67 +145,34 @@ class LabelledDataset:
                     f"Aligning {self.get_label_level()} labels to tokenization...",
                     end="", flush=True
                 )
-            # assume pre-tokenized space-separated input for token-level tasks
-            if self.get_label_level() == 'token':
-                tokenizer_batch = []
-                for sequence in inputs:
-                    # case: space-separated token sequence
-                    if type(sequence) is str:
-                        tokenizer_batch.append(sequence.split(' '))
-                    # case: multiple space-separated token sequences
-                    elif type(sequence) is tuple:
-                        tokenizer_batch.append(tuple([s.split(' ') for s in sequence]))
-                    else:
-                        raise TypeError(f"Unable to repeat labels across sequence of type {type(sequence)}.")
-                # pass pre-tokenized batch to model tokenizer
-                tokenization = encoder.tokenize(tokenizer_batch, tokenized=True)
-            # use encoder-specific tokenization for sentence-level tasks
-            else:
-                tokenization = encoder.tokenize(inputs)
+
+            tokenization = encoder.tokenize(inputs, tokenized=(self.get_label_level() == 'token'))
 
             # iterate over inputs
-            token_label_cursor = -1  # cursor over flattened batch labels
-            for idx in range(len(inputs)):
+            label_offset = 0  # global start position of sequence in flattened batch labels
+            for sequence_idx, sequence in enumerate(inputs):
                 repeated_labels.append([])
-                # convert token IDs to pieces
-                pieces = encoder._tok.convert_ids_to_tokens(tokenization['input_ids'][idx])
-                # iterate over subword tokens
-                for tidx in range(tokenization['attention_mask'][idx].sum()):
-                    # skip special tokens
-                    if (not encoder._specials) and (tokenization['special_tokens_mask'][idx, tidx]):
-                        continue
-                    # case: token-level tasks repeat token labels across all subwords of the original token
-                    if self.get_label_level() == 'token':
-                        # check for start of new token
-                        if tokenization['offset_mapping'][idx, tidx, 0] == 0:
-                            # check for edge cases in which offsets do not align with original tokenization
-                            # 1) sanity check BERT-style tokenizers for sub-words spanning one character
-                            # example: one Hangul character decomposing into multiple parts all with offsets [0, 1]
-                            if (
-                                    isinstance(encoder._tok, transformers.models.bert.BertTokenizerFast)
-                                    and
-                                    pieces[tidx].startswith('##')
-                            ):
-                                token_label_cursor += 0
-                            # 2) check for incorrect offset mapping in SentencePiece tokenizers (e.g. XLM-R)
-                            # example: ',' -> '▁', ',' with [0, 1], [0, 1] which increment the label cursor prematurely
-                            # https://github.com/huggingface/transformers/issues/9637
-                            elif (tidx > 0) and (pieces[tidx - 1] == '▁'):
-                                token_label_cursor += 0
-                            # 3) TODO
-                            elif (
-                                    isinstance(encoder._tok, transformers.models.gpt2.GPT2TokenizerFast)
-                                    and
-                                    (not pieces[tidx].startswith('Ġ'))
-                            ):
-                                token_label_cursor += 0
-                            # increment label cursor on new standard token
-                            else:
-                                token_label_cursor += 1
-                        repeated_labels[-1].append(labels[token_label_cursor])
-                    # case: sequence-level tasks repeat single sequence label across all sequence subwords
-                    else:
-                        repeated_labels[-1].append(labels[idx])
+                # case: token-level task with pre-tokenized inputs
+                if self.get_label_level() == 'token':
+                    piece_word_map = tokenization.word_ids(batch_index=sequence_idx)
+                    num_words = 0
+                    for piece_idx, word_idx in enumerate(piece_word_map):
+                        # skip padding or unrecognized words
+                        if word_idx is None:
+                            continue
+                        # skip special tokens
+                        if (not encoder._specials) and (tokenization['special_tokens_mask'][sequence_idx, piece_idx]):
+                            continue
+                        # add repeated label at current batch-level offset
+                        repeated_labels[-1].append(labels[label_offset + word_idx])
+                        num_words = word_idx + 1
+                    label_offset += num_words
+                # case: sequence-level task with one label per sequence
+                else:
+                    piece_mask = tokenization['attention_mask'][sequence_idx].bool()
+                    if not encoder._specials:
+                        piece_mask &= (tokenization['special_tokens_mask'][sequence_idx] == 0)
+                    repeated_labels[-1] = [labels[sequence_idx] for _ in range(piece_mask.sum())]
 
         # set internal labels to repeated
         self._repeated_labels = repeated_labels
@@ -210,7 +202,7 @@ class LabelledDataset:
                 csv_writer.writerow(row)
 
     @staticmethod
-    def from_path(path):
+    def from_path(path, tokenized=False):
         inputs, labels = [], []
         label_level = 'sequence'
         with open(path, 'r', encoding='utf8', newline='') as fp:
@@ -236,4 +228,4 @@ class LabelledDataset:
                 inputs.append(text)
                 labels.append(label)
 
-        return LabelledDataset(inputs, labels)
+        return LabelledDataset(inputs, labels, tokenized=tokenized)

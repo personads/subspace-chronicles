@@ -1,10 +1,12 @@
 # Subspace Chronicles
 
-This archive contains implementations of the methods from **"Subspace Chronicles: How Linguistic Information Emerges, Shifts and Interacts during Language Model Training"** ([Müller-Eberstein, van der Goot, Plank and Titov, 2023](https://personads.me/x/emnlp-2023); Findings of EMNLP 2023).
+This repository contains implementations of the methods from **"Subspace Chronicles: How Linguistic Information Emerges, Shifts and Interacts during Language Model Training"** ([Müller-Eberstein, van der Goot, Plank and Titov, 2023](https://personads.me/x/emnlp-2023); Findings of EMNLP 2023), as well as for the representational stability experiments in **"PolyPythias: Stability and Outliers across Fifty Language Model Training Runs"** ([van der Wal et al.](https://mxij.me/x/polypythias)), 2025; ICLR 2025).
 
 ![Subspace Chronicles via probes θ across LM training time, as measured by F1, codelength L, and subspace angles across tasks and time.](subspace-chronicles.png)
 
-After installing the required packages, and downloading external datasets, the experiments can be re-run using the `scripts/multiberts/run.sh` script. Please see the instructions below for details.
+After installing the required packages, and downloading external datasets, the EMNLP experiments can be re-run using the `scripts/multiberts/run.sh` script, while the ICLR experiments can be run using the `scripts/pythia/run.sh` scripts.
+
+ Please see the instructions below for details.
 
 ## Installation
 

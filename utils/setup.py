@@ -79,7 +79,7 @@ def setup_layers(layers_id):
 	layers_match = re.match(r'(?P<name>[a-z]+?)(?P<args>\((\d+,? *)*\))', layers_id, flags=re.IGNORECASE)
 	args_pattern = re.compile(r'(\d+),?')
 
-	# check if layer syntax is correct
+	# check if filter syntax is correct
 	if layers_match:
 		layers_args = [int(a) for a in args_pattern.findall(layers_match['args'])]
 		# parse all
@@ -94,7 +94,7 @@ def setup_layers(layers_id):
 				logging.error(f"[Error] mask layer selector requires list of mask values. Exiting.")
 				exit(1)
 			return (torch.tensor(layers_args) > 0)
-		# parse autolayer
+		# parse band filter
 		elif layers_match['name'] == 'auto':
 			if len(layers_args) != 1:
 				logging.error(f"[Error] auto layers selector requires one argument 'num_layers'. Exiting.")
@@ -119,7 +119,10 @@ def setup_pooling(identifier):
 
 def setup_encoder(
 		model_name, model_revision, layers_id,
-		encoder_path=None, model_path=None, emb_caching=None, emb_pooling=None, emb_tuning=False, lyr_pooling=False):
+		encoder_path=None, model_path=None,
+		emb_caching=None, emb_pooling=None, emb_tuning=False,
+		lyr_pooling=False, tokenized=False
+):
 	# set up layer selector
 	lyr_selector = setup_layers(layers_id)
 	lyr_tuning = layers_id.startswith('auto')
@@ -138,12 +141,14 @@ def setup_encoder(
 			model_name=model_name,
 			lyr_selector=lyr_selector, lyr_tuning=lyr_tuning, lyr_pooling=lyr_pooling,
 			emb_tuning=emb_tuning, emb_pooling=pooling_strategy, model_revision=model_revision,
+			tokenized=tokenized,
 			cache=({} if emb_caching else None))
 	else:
 		encoder = Encoder.load(
 			model_path,
 			lyr_selector=lyr_selector, lyr_tuning=lyr_tuning, lyr_pooling=lyr_pooling,
 			emb_tuning=emb_tuning, emb_pooling=pooling_strategy,
+			tokenized=tokenized,
 			cache=({} if emb_caching else None)
 		)
 		logging.info(f"Loaded pre-trained {encoder.__class__.__name__} from '{model_path}'.")

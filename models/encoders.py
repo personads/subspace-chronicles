@@ -11,7 +11,7 @@ class Encoder(nn.Module):
 	def __init__(
 			self, model_name, lyr_selector,
 			lyr_tuning=False, emb_tuning=False,
-			lyr_pooling=False, emb_pooling=None, specials=False,
+			lyr_pooling=False, emb_pooling=None, tokenized=False, specials=False,
 			model_revision='main', cache=None):
 		super().__init__()
 		# load transformer
@@ -37,6 +37,7 @@ class Encoder(nn.Module):
 		# internal variables
 		self._lm_name = model_name
 		self._lm_revision = model_revision
+		self._tokenized = tokenized
 		self._specials = specials
 		self._emb_pooling = emb_pooling
 		# layer selector parameters
@@ -59,7 +60,8 @@ class Encoder(nn.Module):
 			f'{f"[pool]→" if self._lyr_pooling else ""}' \
 			f'(N,{self.num_outputs},M,{self.emb_dim}),\n' \
 			f'    {self._lm.__class__.__name__} ("{self._lm_name} ({self._lm_revision})"),\n' \
-			f'    {"tunable" if self._emb_tuning else "static"} embeddings' \
+			f'    {"tokenized" if self._tokenized else "raw"} inputs' \
+			f', {"tunable" if self._emb_tuning else "static"} embeddings' \
 			f', pooling {"disabled" if self._emb_pooling is None else "enabled"},\n' \
 			f'    {"tunable" if self._lyr_tuning else "static"} layer selection' \
 			f', {f"{torch.sum(self._lyr_selector != 0)}/{self._lyr_selector.shape[0]}"} active layers,\n' \
@@ -179,7 +181,7 @@ class Encoder(nn.Module):
 		# compute embeddings if not in cache
 		tok_sentences = self.tokenize(sentences)
 		model_inputs = {
-			k: tok_sentences[k] for k in ['input_ids', 'token_type_ids', 'attention_mask']
+			k: tok_sentences[k] for k in ['input_ids', 'attention_mask']  # no segment embeddings for GPT ['input_ids', 'token_type_ids', 'attention_mask']
 			if k in tok_sentences
 		}
 
@@ -207,7 +209,8 @@ class Encoder(nn.Module):
 
 		return emb_tokens, att_tokens
 
-	def tokenize(self, sentences, tokenized=False):
+	def tokenize(self, sentences, tokenized=None):
+		tokenized = self._tokenized if tokenized is None else tokenized
 		# tokenize batch: {input_ids: [[]], token_type_ids: [[]], attention_mask: [[]], special_tokens_mask: [[]]}
 		# check for multi-sentence inputs
 		if (len(sentences) > 0) and (type(sentences[0]) is tuple):
@@ -229,7 +232,8 @@ class Encoder(nn.Module):
 
 		# move input to GPU (if available)
 		if torch.cuda.is_available():
-			tok_sentences = {k: v.to(torch.device('cuda')) for k, v in tok_sentences.items()}
+			for k, v in tok_sentences.items():
+				tok_sentences[k] = v.to(torch.device('cuda'))
 
 		return tok_sentences
 
