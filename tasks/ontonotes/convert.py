@@ -96,27 +96,41 @@ def main():
 
 		# merge data when not splitting across domains
 		if not args.split_domains:
-			inputs = [inputs[0] + inputs[1]]
-			pos = [pos[0] + pos[1]]
-			entities = [entities[0] + entities[1]]
-			coreferences = [coreferences[0] + coreferences[1]]
-
-		# iterate over domain splits
-		for domain_idx, domain_name in enumerate(domain_map):
-			# save PoS data
-			os.makedirs(os.path.join(args.output_path, domain_name, 'pos'), exist_ok=True)
-			path = os.path.join(args.output_path, domain_name, 'pos', f'{split_map[split_name]}.csv')
-			save(path, inputs[domain_idx], pos[domain_idx])
+			inputs = inputs[0] + inputs[1]
+			pos = pos[0] + pos[1]
+			entities = entities[0] + entities[1]
+			coreferences = coreferences[0] + coreferences[1]
+			
+			os.makedirs(os.path.join(args.output_path, 'pos'), exist_ok=True)
+			path = os.path.join(args.output_path, 'pos', f'{split_map[split_name]}.csv')
+			save(path, inputs, pos)
 
 			# save named entity data
-			os.makedirs(os.path.join(args.output_path, domain_name, 'ner'), exist_ok=True)
-			path = os.path.join(args.output_path, domain_name, 'ner', f'{split_map[split_name]}.csv')
-			save(path, inputs[domain_idx], entities[domain_idx])
+			os.makedirs(os.path.join(args.output_path, 'ner'), exist_ok=True)
+			path = os.path.join(args.output_path, 'ner', f'{split_map[split_name]}.csv')
+			save(path, inputs, entities)
 
 			# save coreference data
-			os.makedirs(os.path.join(args.output_path, domain_name, 'coref'), exist_ok=True)
-			path = os.path.join(args.output_path, domain_name, 'coref', f'{split_map[split_name]}.csv')
-			save(path, inputs[domain_idx], coreferences[domain_idx])
+			os.makedirs(os.path.join(args.output_path, 'coref'), exist_ok=True)
+			path = os.path.join(args.output_path, 'coref', f'{split_map[split_name]}.csv')
+			save(path, inputs, coreferences)
+		else:
+			# iterate over domain splits
+			for domain_idx, domain_name in enumerate(domain_map):
+				# save PoS data
+				os.makedirs(os.path.join(args.output_path, domain_name, 'pos'), exist_ok=True)
+				path = os.path.join(args.output_path, domain_name, 'pos', f'{split_map[split_name]}.csv')
+				save(path, inputs[domain_idx], pos[domain_idx])
+
+				# save named entity data
+				os.makedirs(os.path.join(args.output_path, domain_name, 'ner'), exist_ok=True)
+				path = os.path.join(args.output_path, domain_name, 'ner', f'{split_map[split_name]}.csv')
+				save(path, inputs[domain_idx], entities[domain_idx])
+
+				# save coreference data
+				os.makedirs(os.path.join(args.output_path, domain_name, 'coref'), exist_ok=True)
+				path = os.path.join(args.output_path, domain_name, 'coref', f'{split_map[split_name]}.csv')
+				save(path, inputs[domain_idx], coreferences[domain_idx])
 
 
 if __name__ == '__main__':
